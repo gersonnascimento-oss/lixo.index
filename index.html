@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>EcoJump: Operação Bairro Limpo</title>
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+      background: #111;
+      color: #fff;
+      font-family: Arial, sans-serif;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+    }
+    h1 { margin: 10px 0 5px; font-size: 22px; color: #48dbfb; }
+    p { margin: 0 0 10px; font-size: 14px; color: #ccc; }
+    canvas {
+      border: 3px solid #fff;
+      background: #70a1ff;
+      box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+    }
+  </style>
+</head>
+<body>
+  <h1>EcoJump: Operação Bairro Limpo</h1>
+  <p>Controles: ← → para mover, ESPAÇO para pular. Recolha os 5 lixos vermelhos e leve até a lixeira verde!</p>
+  <canvas id="gameCanvas" width="800" height="500"></canvas>
+
+  <script>
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+
+    let score = 0;
+    let timer = 60;
+    let gameOver = false;
+    let gameWon = false;
+    let keys = {};
+
+    const player = {
+      x: 50,
+      y: 350,
+      width: 30,
+      height: 30,
+      color: '#1e90ff',
+      vx: 0,
+      vy: 0,
+      speed: 4,
+      jumpForce: -11,
+      grounded: false
+    };
+
+    const gravity = 0.5;
+
+    const platforms = [
+      { x: 0, y: 460, width: 800, height: 40, color: '#2f3542' },
+      { x: 150, y: 360, width: 130, height: 20, color: '#57606f' },
+      { x: 350, y: 280, width: 130, height: 20, color: '#57606f' },
+      { x: 550, y: 200, width: 130, height: 20, color: '#57606f' },
+      { x: 200, y: 150, width: 130, height: 20, color: '#57606f' }
+    ];
+
+    let trashList = [
+      { x: 200, y: 330, width: 16, height: 16, collected: false },
+      { x: 400, y: 250, width: 16, height: 16, collected: false },
+      { x: 600, y: 170, width: 16, height: 16, collected: false },
+      { x: 250, y: 120, width: 16, height: 16, collected: false },
+      { x: 700, y: 430, width: 16, height: 16, collected: false }
+    ];
+
+    const bin = { x: 720, y: 390, width: 45, height: 70, color: '#2ed573' };
+
+    window.addEventListener('keydown', e => keys[e.code] = true);
+    window.addEventListener('keyup', e => keys[e.code] = false);
+
+    const timerInterval = setInterval(() => {
+      if (!gameOver && !gameWon) {
+        timer--;
+        if (timer <= 0) gameOver = true;
+      }
+    }, 1000);
+
+    function update() {
+      if (gameOver || gameWon) return;
+
+      if (keys['ArrowRight'] || keys['KeyD']) player.vx = player.speed;
+      else if (keys['ArrowLeft'] || keys['KeyA']) player.vx = -player.speed;
+      else player.vx = 0;
+
+      if ((keys['Space'] || keys['ArrowUp'] || keys['KeyW']) && player.grounded) {
+        player.vy = player.jumpForce;
+        player.grounded = false;
+      }
+
+      player.vy += gravity;
+      player.x += player.vx;
+      player.y += player.vy;
+
+      if (player.x < 0) player.x = 0;
+      if (player.x + player.width > canvas.width) player.x = canvas.width - player.width;
+
+      player.grounded = false;
+      for (let p of platforms) {
+        if (
+          player.x < p.x + p.width &&
+          player.x + player.width > p.x &&
+          player.y + player.height >= p.y &&
+          player.y + player.height <= p.y + player.vy + 5 &&
+          player.vy >= 0
+        ) {
+          player.grounded = true;
+          player.vy = 0;
+          player.y = p.y - player.height;
+        }
+      }
+
+      trashList.forEach(item => {
+        if (!item.collected && checkCollision(player, item)) {
+          item.collected = true;
+          score += 100;
+        }
+      });
+
+      const allCollected = trashList.every(item => item.collected);
+      if (allCollected && checkCollision(player, bin)) {
+        gameWon = true;
+      }
+    }
+
+    function checkCollision(r1, r2) {
+      return (
+        r1.x < r2.x + r2.width &&
+        r1.x + r1.width > r2.x &&
+        r1.y < r2.y + r2.height &&
+        r1.y + r1.height > r2.y
+      );
+    }
+
+    function draw() {
+      ctx.fillStyle = '#70a1ff';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      platforms.forEach(p => {
+        ctx.fillStyle = p.color;
+        ctx.fillRect(p.x, p.y, p.width, p.height);
+      });
+
+      ctx.fillStyle = bin.color;
+      ctx.fillRect(bin.x, bin.y, bin.width, bin.height);
+      ctx.fillStyle = '#fff';
+      ctx.font = '10px Arial';
+      ctx.fillText('RECICLA', bin.x + 2, bin.y + 40);
+
+      trashList.forEach(item => {
+        if (!item.collected) {
+          ctx.fillStyle = '#ff4757';
+          ctx.fillRect(item.x, item.y, item.width, item.height);
+        }
+      });
+
+      ctx.fillStyle = player.color;
+      ctx.fillRect(player.x, player.y, player.width, player.height);
+
+      ctx.fillStyle = '#1e272e';
+      ctx.font = 'bold 16px Arial';
+      ctx.fillText(`Pontos: ${score}`, 20, 30);
+      ctx.fillText(`Tempo: ${timer}s`, 160, 30);
+      const remaining = trashList.filter(i => !i.collected).length;
+      ctx.fillText(`Lixos Restantes: ${remaining}`, 290, 30);
+
+      if (gameWon) {
+        ctx.fillStyle = 'rgba(0,0,0,0.85)';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.fillStyle = '#2ed573';
+        ctx.font = 'bold 30px Arial';
+        ctx.textAlign = 'center';
+        ctx.fillText('VOCÊ VENCEU! O BAIRRO ESTÁ LIMPO!', canvas.width / 2, canvas.height / 2 - 10);
+        ctx.fillStyle = '#fff';
+        ctx.font = '16px Arial';
+        ctx.fillText(`Pontuação Final: ${score} | Recarregue para jogar de novo`, canvas.width / 2, canvas.height / 2 + 30);
+        ctx.textAlign = 'left';
+      } else if (gameOver) {
+        ctx.fillStyle = 'rgba(0,0,0,0.85)';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.fillStyle = '#ff4757';
+        ctx.font = 'bold 30px Arial';
+        ctx.textAlign = 'center';
+        ctx.fillText('TEMPO ESGOTADO! O BAIRRO ALAGOU!', canvas.width / 2, canvas.height / 2 - 10);
+        ctx.fillStyle = '#fff';
+        ctx.font = '16px Arial';
+        ctx.fillText('Recarregue a página para tentar novamente.', canvas.width / 2, canvas.height / 2 + 30);
+        ctx.textAlign = 'left';
+      }
+    }
+
+    function loop() {
+      update();
+      draw();
+      requestAnimationFrame(loop);
+    }
+
+    loop();
+  </script>
+</body>
+</html>
